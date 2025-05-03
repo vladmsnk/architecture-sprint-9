@@ -1,0 +1,74 @@
+@startuml DepositSystem_Containers_v2
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Система депозитов — Диаграмма контейнеров (v2)
+
+Person(new_client, "Новый клиент", "Открывает депозит через публичный сайт")
+Person(existing_client, "Существующий клиент", "Управляет депозитами через интернет-банк")
+Person(bo_operator, "Оператор бэк-офиса", "Подтверждает заявки в ABS")
+Person(cc_agent, "Оператор колл-центра", "Работает с заявками в CRM")
+
+System_Boundary(bank_system, "Банковская система") {
+    Container(site_fe, "Публичный сайт", "PHP + React", "Фронтенд для новых клиентов")
+
+    Container(ib_monolith, "Интернет-банк (монолит)", "ASP.NET MVC 4.5", "Основной канал для клиентов") {
+        Component(ib_web, "Web application", "Обработка UI")
+        Component(ib_deposits, "Deposits API Facade", "Новый контроллер для депозитов")
+    }
+
+    ContainerDb(ib_db, "БД интернет-банка", "MS SQL Server", "Хранит данные клиентов")
+
+    Container(deposit_service, "Микросервис депозитов", "Go/.NET API", "Обработка депозитных операций") {
+        Component(dep_api, "Public REST API", "Эндпоинты /rates, /apply")
+        Component(dep_core, "App Logic", "Бизнес-логика и валидация")
+    }
+
+    ContainerDb(rates_cache, "Кэш ставок", "Redis", "Актуальные ставки (TTL 24 ч)")
+
+    Container(apply_queue, "Очередь заявок", "Message Queue", "Топик deposit.apply")
+    Container(event_queue, "Очередь событий", "Message Queue", "Топик events")
+
+    Container(abs_core, "ABS Core", "Oracle PL/SQL", "Ядро банковской системы") {
+        Component(rates_mod, "Модуль ставок", "Процедуры расчёта ставок")
+        Component(deposit_pl, "Deposit Create", "Процедуры создания депозитов")
+    }
+
+    ContainerDb(abs_db, "ABS Database", "Oracle", "Основное хранилище данных")
+
+    Container(cc_platform, "Платформа колл-центра", "React + Spring Boot") {
+        Component(cc_fe, "Operator UI", "Интерфейс оператора")
+        Component(cc_bff, "CRM Backend", "Логика обработки заявок")
+    }
+
+    ContainerDb(cc_db, "CRM Database", "PostgreSQL", "Хранилище заявок")
+
+    Container(sms_worker, "SMS Worker", "Go/.NET", "Отправка уведомлений")
+}
+
+System_Ext(sms_gateway, "SMS Gateway", "Телеком-оператор")
+System_Ext(partner_cc, "Партнёрский колл-центр", "Внешняя система")
+
+' Основные связи
+Rel(new_client, site_fe, "Просмотр ставок / подача заявки")
+Rel(site_fe, dep_api, "HTTPS /rates, /apply")
+Rel(existing_client, ib_web, "Работа через UI")
+Rel(ib_web, ib_deposits, "Внутренний вызов")
+Rel(ib_deposits, dep_api, "REST/JSON")
+Rel(dep_api, dep_core, "Обработка запроса")
+Rel(dep_core, rates_cache, "Чтение/запись ставок")
+Rel(dep_core, apply_queue, "Публикация заявки")
+Rel(cc_bff, apply_queue, "Чтение заявок")
+Rel(cc_agent, cc_fe, "Работа с заявками")
+Rel(bo_operator, deposit_pl, "Подтверждение заявки")
+Rel(deposit_pl, event_queue, "Событие deposit_opened")
+Rel(sms_worker, event_queue, "Чтение событий")
+Rel(sms_worker, sms_gateway, "Отправка SMS")
+Rel(apply_queue, partner_cc, "Передача заявок")
+
+' Дополнительные связи
+Rel(dep_core, rates_mod, "Ежедневное обновление ставок", "JDBC")
+Rel(ib_monolith, ib_db, "Чтение/запись", "ADO.NET")
+Rel(cc_platform, cc_db, "Чтение/запись", "JDBC")
+Rel(abs_core, abs_db, "Чтение/запись", "PL/SQL")
+
+@enduml

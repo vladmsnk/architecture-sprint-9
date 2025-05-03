@@ -1,0 +1,29 @@
+@startuml RatesService_Context_v2
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Контекстная диаграмма: Интеграция ставок депозитов с рассылкой presignedURL
+
+Person(operator, "Оператор внутр. кол‑центра", "Запрашивает ставки через CRM")
+Person(partnerCC, "Партнёрский кол‑центр", "Получает ссылки по email")
+
+System_Boundary(bankSystem, "Банковская система") {
+    System(crm, "Call Center UI", "Интерфейс для операторов кол‑центра")
+    System(ratesMS, "Микросервис ставок", "Генерирует ставки, CSV и presignedURL")
+    System(s3, "S3 Bucket", "Хранилище CSV‑файлов ставок")
+    System(emailSvc, "SMTP‑сервер", "Отправляет письма с presignedURL")
+}
+
+System_Ext(partnerEmail, "Почтовый ящик партнёра", "Принимает письма с ссылками")
+
+Rel(operator, crm, "Работает через")
+Rel(crm, ratesMS, "GET /rates\nGET /rates/csv-url")
+Rel(ratesMS, crm, "JSON со ставками\npresignedURL")
+
+Rel(ratesMS, s3, "PUT rates.csv")
+Rel(ratesMS, s3, "Генерирует presignedURL")
+
+Rel(ratesMS, emailSvc, "SMTP: отправить письмо с presignedURL")
+Rel(emailSvc, partnerEmail, "Доставляет email")
+
+Rel(partnerCC, partnerEmail, "Получает письмо и кликает по ссылке\n(скачивает CSV)")
+@enduml

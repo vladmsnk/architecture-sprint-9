@@ -1,0 +1,32 @@
+@startuml DepositSystem_Context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Система депозитов - Контекстная диаграмма
+
+Person(new_client, "Новый клиент", "Потенциальный клиент, который хочет открыть депозит через сайт")
+Person(existing_client, "Существующий клиент", "Клиент банка, открывающий депозит через интернет-банк")
+Person(back_office, "Сотрудник бэк-офиса", "Подтверждает заявки и открывает депозиты в core-системе")
+
+System_Boundary(boundary, "Банковская система") {
+    System(site, "Публичный сайт", "Предоставляет информацию по депозитам и форму заявки")
+    System(ib, "Интернет-банк (монолит)", "Основной интерфейс для существующих клиентов")
+    System(ms_deposit, "Микросервис депозитов", "Обрабатывает заявки на депозиты")
+    System(abs, "Core-система (ABS)", "Основная банковская система на Oracle PL/SQL")
+    System_Ext(crm, "CRM колл-центра", "Система для обработки заявок сотрудниками")
+}
+
+System_Ext(sms_gw, "SMS шлюз", "Отправляет уведомления клиентам")
+
+Rel(new_client, site, "Просмотр ставок / отправка формы")
+Rel(existing_client, ib, "Открытие депозита")
+Rel(back_office, crm, "Работа с заявками")
+Rel(back_office, abs, "Подтверждение ставки / открытие депозита")
+
+Rel(site, ms_deposit, "Отправка данных формы (HTTPS/JSON)")
+Rel(ib, ms_deposit, "Взаимодействие (REST/JSON)")
+Rel(ms_deposit, abs, "Асинхронная интеграция через очередь")
+Rel(abs, ms_deposit, "Событие deposit_opened")
+Rel(ms_deposit, sms_gw, "Отправка SMS уведомлений")
+Rel(crm, ms_deposit, "Чтение данных заявки")
+
+@enduml
