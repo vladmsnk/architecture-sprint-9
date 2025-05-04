@@ -1,0 +1,39 @@
+@startuml RatesService_Containers_v3
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Интеграция ставок депозитов — Диаграмма контейнеров
+
+Person(operator, "Оператор внутр. кол‑центра", "Работает через CRM")
+Person(partnerCC, "Партнёрский кол‑центр", "Получает ссылки по email")
+
+System_Boundary(bank_system, "Банковская система") {
+    Container(crm, "Call Center UI", "Java/Spring", "Интерфейс операторов кол‑центра")
+
+    Container(rates_ms, "Микросервис ставок", "Go/.NET", "Генерирует ставки, CSV и рассылает presigned URL") {
+        Component(api, "REST API", "Эндпоинты: /rates, /rates/csv-url")
+        Component(scheduler, "Scheduler", "Cron для обновления ставок и генерации CSV")
+        Component(storage, "S3 Client", "AWS S3 SDK для загрузки CSV и presigned URL")
+        Component(cache, "Cache", "Redis для кэширования ставок")
+        Component(emailer, "Email Sender", "SMTP‑клиент для рассылки presigned URL")
+    }
+}
+
+System_Ext(s3, "S3 Bucket", "AWS S3", "Хранение CSV‑файлов")
+System_Ext(emailSvc, "SMTP‑сервер", "Почтовый сервис")
+
+Rel(operator, crm, "Запрос JSON /rates")
+Rel(crm, api, "GET /rates")
+Rel(api, cache, "Чтение/запись ставок")
+
+Rel(scheduler, cache, "Читает ставки")
+Rel(scheduler, storage, "PUT /rates.csv")
+Rel(storage, s3, "Загрузка CSV-файла")
+
+Rel(api, storage, "GET presigned URL")
+Rel(api, crm, "Возвращает presigned URL оператору")
+
+Rel(scheduler, storage, "После PUT генерирует presigned URL")
+Rel(scheduler, emailer, "Передаёт presigned URL")
+Rel(emailer, emailSvc, "SMTP: отправка письма")
+Rel(partnerCC, emailSvc, "Получает письмо и кликает по ссылке\n(скачивает CSV)")
+@enduml
